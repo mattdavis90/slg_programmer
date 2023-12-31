@@ -1,0 +1,6 @@
+---
+BasedOnStyle: Webkit
+ColumnLimit: 88
+AlignConsecutiveAssignments: true
+AlignConsecutiveMacros: true
+IndentCaseLabels: true
