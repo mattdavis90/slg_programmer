@@ -13,23 +13,24 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
-#define NVM_CONFIG    0x02
-#define EEPROM_CONFIG 0x03
-
-uint8_t i2c_slave_addr = 0x01;
+const uint8_t NVM_CONFIG    = 0x02;
+const uint8_t EEPROM_CONFIG = 0x03;
 
 void print_usage(const char* a);
-bool read_slg(int i2c_bus, bool target_nvm);
-bool write_slg(int i2c_bus, const char* filename, bool target_nvm);
-bool erase_slg(int i2c_bus, bool target_nvm);
+bool read_slg(int i2c_bus, uint8_t i2c_slave_addr, bool target_nvm);
+bool write_slg(
+    int i2c_bus, uint8_t i2c_slave_addr, const char* filename, bool target_nvm);
+bool erase_slg(int i2c_bus, uint8_t i2c_slave_addr, bool target_nvm);
 
 int main(int argc, char* argv[])
 {
-    bool erase      = false;
-    bool read       = false;
-    bool write      = false;
-    bool target_nvm = true;
+    uint8_t i2c_slave_addr = 0x01;
+    bool erase             = false;
+    bool read              = false;
+    bool write             = false;
+    bool target_nvm        = true;
     char* filename;
+
     int c;
     while ((c = getopt(argc, argv, ":erw:t:i:")) != -1) {
         switch (c) {
@@ -97,21 +98,21 @@ int main(int argc, char* argv[])
 
     bool ok = false;
     if (read) {
-        ok = read_slg(i2c_bus, target_nvm);
+        ok = read_slg(i2c_bus, i2c_slave_addr, target_nvm);
     } else if (write) {
-        ok = erase_slg(i2c_bus, target_nvm);
+        ok = erase_slg(i2c_bus, i2c_slave_addr, target_nvm);
         if (ok) {
             printf("Waiting for powercycle\n");
             getchar();
-            ok = write_slg(i2c_bus, filename, target_nvm);
+            ok = write_slg(i2c_bus, i2c_slave_addr, filename, target_nvm);
             if (ok) {
                 printf("Waiting for powercycle\n");
                 getchar();
-                ok = read_slg(i2c_bus, target_nvm);
+                ok = read_slg(i2c_bus, i2c_slave_addr, target_nvm);
             }
         }
     } else if (erase) {
-        ok = erase_slg(i2c_bus, target_nvm);
+        ok = erase_slg(i2c_bus, i2c_slave_addr, target_nvm);
     }
     if (!ok)
         return 1;
@@ -124,7 +125,7 @@ void print_usage(const char* a)
     printf("Usage: %s [-i <id>] [-t nvm|eeprom] [-e] [-r] [-w <filename>] <i2c> \n", a);
 }
 
-bool read_slg(int i2c_bus, bool target_nvm)
+bool read_slg(int i2c_bus, uint8_t i2c_slave_addr, bool target_nvm)
 {
     printf("Starting read\n");
 
@@ -172,7 +173,8 @@ bool read_slg(int i2c_bus, bool target_nvm)
     return true;
 }
 
-bool write_slg(int i2c_bus, const char* filename, bool target_nvm)
+bool write_slg(
+    int i2c_bus, uint8_t i2c_slave_addr, const char* filename, bool target_nvm)
 {
     printf("Reading HEX file\n");
 
@@ -254,7 +256,7 @@ bool write_slg(int i2c_bus, const char* filename, bool target_nvm)
     return true;
 }
 
-bool erase_slg(int i2c_bus, bool target_nvm)
+bool erase_slg(int i2c_bus, uint8_t i2c_slave_addr, bool target_nvm)
 {
     printf("Starting erase\n");
 
