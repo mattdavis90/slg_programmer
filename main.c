@@ -18,7 +18,7 @@ const uint8_t EEPROM_CONFIG = 0x03;
 
 void print_usage(const char* a);
 bool read_slg(int i2c_bus, uint8_t i2c_slave_addr, bool target_nvm);
-bool write_slg(
+int write_slg(
     int i2c_bus, uint8_t i2c_slave_addr, const char* filename, bool target_nvm);
 bool erase_slg(int i2c_bus, uint8_t i2c_slave_addr, bool target_nvm);
 
@@ -102,13 +102,13 @@ int main(int argc, char* argv[])
     } else if (write) {
         ok = erase_slg(i2c_bus, i2c_slave_addr, target_nvm);
         if (ok) {
-            printf("Waiting for powercycle\n");
+            printf("Addr reset to 0.\nWaiting for powercycle.\nPress any key to continue...\n");
             getchar();
-            ok = write_slg(i2c_bus, i2c_slave_addr, filename, target_nvm);
-            if (ok) {
-                printf("Waiting for powercycle\n");
+            int addr = write_slg(i2c_bus, 0, filename, target_nvm); // Address is 0 after erase
+            if (addr > -1) {
+                printf("New ID is %d.\nWaiting for powercycle.\nPress any key to continue...\n", addr);
                 getchar();
-                ok = read_slg(i2c_bus, i2c_slave_addr, target_nvm);
+                ok = read_slg(i2c_bus, addr, target_nvm);
             }
         }
     } else if (erase) {
@@ -127,7 +127,7 @@ void print_usage(const char* a)
 
 bool read_slg(int i2c_bus, uint8_t i2c_slave_addr, bool target_nvm)
 {
-    printf("Starting read\n");
+    printf("Reading from device at address %d\n", i2c_slave_addr);
 
     uint8_t control_code
         = (i2c_slave_addr << 3) | (target_nvm ? NVM_CONFIG : EEPROM_CONFIG);
@@ -173,7 +173,7 @@ bool read_slg(int i2c_bus, uint8_t i2c_slave_addr, bool target_nvm)
     return true;
 }
 
-bool write_slg(
+int write_slg(
     int i2c_bus, uint8_t i2c_slave_addr, const char* filename, bool target_nvm)
 {
     printf("Reading HEX file\n");
@@ -181,19 +181,19 @@ bool write_slg(
     int fd = open(filename, O_RDONLY);
     if (fd == -1) {
         printf("Error: Could not open hex file\n");
-        return false;
+        return -1;
     }
 
     struct stat sb;
     if (fstat(fd, &sb) == -1) {
         printf("Error: fstat failed\n");
-        return false;
+        return -1;
     }
 
     char* buf = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (buf == MAP_FAILED) {
         printf("Error: mmap failed\n");
-        return false;
+        return -1;
     }
 
     uint8_t pages[16][16];
@@ -211,7 +211,7 @@ bool write_slg(
     munmap(buf, sb.st_size);
     close(fd);
 
-    printf("Starting write\n");
+    printf("Writing to device at address %d\n", i2c_slave_addr);
 
     uint8_t control_code
         = (i2c_slave_addr << 3) | (target_nvm ? NVM_CONFIG : EEPROM_CONFIG);
@@ -241,7 +241,7 @@ bool write_slg(
         if (ret < 0) {
             printf("Error: ioctl returned %d. Reason: %s (errno=%d)\n", ret,
                 strerror(errno), errno);
-            return false;
+            return -1;
         }
 
         printf("%02X:  ", page << 4);
@@ -253,12 +253,12 @@ bool write_slg(
         usleep(20000); // 20ms
     }
 
-    return true;
+    return pages[12][10] & 0x7;
 }
 
 bool erase_slg(int i2c_bus, uint8_t i2c_slave_addr, bool target_nvm)
 {
-    printf("Starting erase\n");
+    printf("Erasing device at address %d\n", i2c_slave_addr);
 
     uint8_t control_code = i2c_slave_addr << 3;
 
